@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rooms — Hostel Management</title>
+    <meta name="description" content="View and manage hostel rooms, availability, and student allocations." />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <span class="brand-dot"></span> Hostel Management
+            </a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="index.html">Home</a>
+                <a class="nav-link" href="students.html">Students</a>
+                <a class="nav-link active" href="rooms.html">Rooms</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 style="font-weight: 800;">Room Management</h2>
+            <button class="btn btn-primary" onclick="showAddRoomForm()">+ Add New Room</button>
+        </div>
+
+        <!-- Room Stats -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3 col-6">
+                <div class="stat-card primary animate-in">
+                    <span class="stat-icon">🚪</span>
+                    <div class="stat-value" id="totalRooms">0</div>
+                    <div class="stat-label">Total Rooms</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="stat-card success animate-in">
+                    <span class="stat-icon">✅</span>
+                    <div class="stat-value" id="availableRooms">0</div>
+                    <div class="stat-label">Available</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="stat-card warning animate-in">
+                    <span class="stat-icon">🔒</span>
+                    <div class="stat-value" id="occupiedRooms">0</div>
+                    <div class="stat-label">Occupied</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="stat-card info animate-in">
+                    <span class="stat-icon">👥</span>
+                    <div class="stat-value" id="totalCapacity">0</div>
+                    <div class="stat-label">Total Capacity</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Room Form (hidden) -->
+        <div id="addRoomForm" style="display: none;" class="mb-4">
+            <div class="card" style="border: 1px solid rgba(99,102,241,0.2);">
+                <div class="card-body">
+                    <h6 style="font-weight: 700; margin-bottom: 1rem;">Add New Room</h6>
+                    <form id="roomForm" onsubmit="addRoom(event)">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Room Number *</label>
+                                <input type="text" class="form-control" id="roomNo" required placeholder="e.g. A201">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Hostel *</label>
+                                <select class="form-select" id="hostelSelect" required>
+                                    <option value="">Select Hostel</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Sharing Type *</label>
+                                <select class="form-select" id="sharingType" required>
+                                    <option value="">Select</option>
+                                    <option value="SINGLE">Single</option>
+                                    <option value="DOUBLE_SHARING">Double Sharing</option>
+                                    <option value="THREE_SHARING">Three Sharing</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Bathroom *</label>
+                                <select class="form-select" id="bathroomType" required>
+                                    <option value="">Select</option>
+                                    <option value="ATTACHED">Attached</option>
+                                    <option value="COMMON">Common</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">AC Type *</label>
+                                <select class="form-select" id="acType" required>
+                                    <option value="">Select</option>
+                                    <option value="AC">AC</option>
+                                    <option value="NON_AC">Non-AC</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Capacity *</label>
+                                <input type="number" class="form-control" id="capacity" min="1" max="10" required>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end gap-2">
+                                <button type="submit" class="btn btn-success">Add Room</button>
+                                <button type="button" class="btn btn-secondary" onclick="hideAddRoomForm()">Cancel</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rooms Grid -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0" style="font-weight: 700;">All Rooms</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3" id="roomsContainer">
+                    <div class="col-12 text-center text-muted py-3">Loading rooms...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Allocation Modal -->
+    <div class="modal fade" id="allocationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Allocate Room</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Select a student to allocate to room: <strong id="selectedRoomInfo"></strong></p>
+                    <select class="form-select" id="studentSelect">
+                        <option value="">Select a student</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="allocateStudentToRoom()">Allocate</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+    <script>
+        // Page-specific init — load rooms and stats using functions from script.js
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRoomsPage();
+            loadHostelsForRoomForm();
+
+            // Auto-set capacity when sharing type changes
+            const sharingType = document.getElementById('sharingType');
+            const capacity = document.getElementById('capacity');
+            if (sharingType && capacity) {
+                sharingType.addEventListener('change', function() {
+                    if (this.value === 'SINGLE') capacity.value = 1;
+                    else if (this.value === 'DOUBLE_SHARING') capacity.value = 2;
+                    else if (this.value === 'THREE_SHARING') capacity.value = 3;
+                });
+            }
+        });
+
+        // Load rooms and compute stats for this page
+        async function loadRoomsPage() {
+            try {
+                const response = await fetch(`${API_BASE}/rooms`);
+                const rooms = await response.json();
+
+                // Compute stats
+                let totalRooms = 0, available = 0, occupied = 0, totalCap = 0;
+                rooms.forEach(room => {
+                    totalRooms++;
+                    totalCap += room.capacity || 0;
+                    const occ = room.students ? room.students.length : 0;
+                    if (occ < room.capacity) available++;
+                    else occupied++;
+                });
+
+                document.getElementById('totalRooms').textContent = totalRooms;
+                document.getElementById('availableRooms').textContent = available;
+                document.getElementById('occupiedRooms').textContent = occupied;
+                document.getElementById('totalCapacity').textContent = totalCap;
+
+                // Render room cards using the same pattern as script.js
+                const container = document.getElementById('roomsContainer');
+                container.innerHTML = '';
+
+                if (rooms.length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center text-muted py-3">No rooms found. Add a room to get started.</div>';
+                    return;
+                }
+
+                rooms.forEach(room => {
+                    const occ = room.students ? room.students.length : 0;
+                    const avail = room.capacity - occ;
+                    const isAvail = avail > 0;
+                    const hostelName = room.hostel ? (room.hostel.hostelName || room.hostel.name || '') : '';
+                    const sharingLabel = room.sharingType === 'SINGLE' ? 'Single' :
+                                         room.sharingType === 'DOUBLE_SHARING' ? 'Double' :
+                                         room.sharingType === 'THREE_SHARING' ? 'Triple' : room.sharingType;
+                    const acLabel = room.acType === 'AC' ? '❄️ AC' : '🌀 Non-AC';
+                    const bathLabel = room.bathroomType === 'ATTACHED' ? '🚿 Attached' : '🏢 Common';
+
+                    const card = `
+                        <div class="col-md-4 col-lg-3 animate-in">
+                            <div class="room-card">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div class="room-number">Room ${escapeHtml(room.roomNo)}</div>
+                                    ${isAvail
+                                        ? '<span class="badge bg-success">Available</span>'
+                                        : '<span class="badge bg-danger">Full</span>'
+                                    }
+                                </div>
+                                <div class="room-meta">
+                                    <span>${sharingLabel}</span>
+                                    <span>${acLabel}</span>
+                                    <span>${bathLabel}</span>
+                                </div>
+                                ${hostelName ? `<div class="room-meta mt-1"><span>🏠 ${escapeHtml(hostelName)}</span></div>` : ''}
+                                <div class="d-flex justify-content-between align-items-center mt-2" style="font-size: 0.8125rem; color: var(--clr-text-muted);">
+                                    <span>Capacity: ${room.capacity}</span>
+                                    <span>Occupied: ${occ}/${room.capacity}</span>
+                                </div>
+                                <div class="d-flex gap-2 mt-3">
+                                    ${isAvail ? `<button class="btn btn-primary btn-sm" onclick="showAllocationModal(${room.id}, '${escapeHtml(room.roomNo)}')">Allocate</button>` : ''}
+                                    <button class="btn btn-outline-danger btn-sm" onclick="deleteRoom(${room.id})">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += card;
+                });
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+                document.getElementById('roomsContainer').innerHTML =
+                    '<div class="col-12"><div class="alert alert-danger">Failed to load rooms. Is the backend running?</div></div>';
+            }
+        }
+    </script>
+
+</body>
+</html>

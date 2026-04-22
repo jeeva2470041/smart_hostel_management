@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Student Dashboard — Hostel Management</title>
+    <meta name="description" content="Student dashboard for viewing room allocations and submitting room preferences." />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <span class="brand-dot"></span> Student Dashboard
+            </a>
+            <div class="navbar-nav ms-auto d-flex align-items-center gap-3">
+                <span class="navbar-text" id="studentWelcome">Welcome, Student!</span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+
+        <!-- Current Allocation Banner (shown if student has a room) -->
+        <div id="currentAllocationCard" style="display: none;" class="mb-4">
+            <div class="card" style="border-left: 4px solid var(--clr-success);">
+                <div class="card-body" id="currentAllocation">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Student Info Card -->
+        <div class="card mb-4 animate-in">
+            <div class="card-header">
+                <h5 class="mb-0" style="font-weight: 700;">📋 My Information</h5>
+            </div>
+            <div class="card-body" id="studentInfo">
+                <!-- Loaded by JS -->
+            </div>
+        </div>
+
+        <!-- Room Selection Process -->
+        <div class="card animate-in" id="roomSelectionCard">
+            <div class="card-header">
+                <h5 class="mb-0" style="font-weight: 700;">🏠 Room Selection</h5>
+                <p class="mb-0 text-muted small mt-1">Choose your preferred hostel and room type</p>
+            </div>
+            <div class="card-body">
+
+                <!-- Stepper -->
+                <div class="stepper" id="stepper">
+                    <div class="stepper-step">
+                        <div class="stepper-circle active" id="step1circle">1</div>
+                        <span class="stepper-label">Select Hostel</span>
+                    </div>
+                    <div class="stepper-line" id="line1"></div>
+                    <div class="stepper-step">
+                        <div class="stepper-circle inactive" id="step2circle">2</div>
+                        <span class="stepper-label">Room Type</span>
+                    </div>
+                    <div class="stepper-line" id="line2"></div>
+                    <div class="stepper-step">
+                        <div class="stepper-circle inactive" id="step3circle">3</div>
+                        <span class="stepper-label">Confirm</span>
+                    </div>
+                </div>
+
+                <!-- Selection Summary -->
+                <div class="selection-summary-bar mb-4" id="selectionSummaryBar">
+                    <div style="font-weight: 600; font-size: 0.8125rem; margin-bottom: 0.25rem;">Your Selection</div>
+                    <div id="selectionSummary" style="font-size: 0.9375rem;">No selection made yet</div>
+                </div>
+
+                <!-- Step 1: Hostel Selection -->
+                <div id="hostelSelectionStep">
+                    <h6 class="mb-3" style="font-weight: 700;">Step 1: Select Hostel Block</h6>
+                    <div class="row g-3" id="hostelContainer">
+                        <div class="col-12 text-center text-muted py-3">Loading hostels...</div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Room Type Selection -->
+                <div id="roomTypeSelectionStep" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0" style="font-weight: 700;">Step 2: Choose Room Type</h6>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="backToHostelSelection()">← Back</button>
+                    </div>
+                    <div class="row g-3" id="roomTypeContainer">
+                        <!-- Loaded from API -->
+                    </div>
+                </div>
+
+                <!-- Step 3: Confirmation -->
+                <div id="confirmationStep" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0" style="font-weight: 700;">Step 3: Confirm Your Selection</h6>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="backToRoomTypeSelection()">← Back</button>
+                    </div>
+                    <div class="card" style="border: 1px solid rgba(99,102,241,0.2);">
+                        <div class="card-body">
+                            <h6 style="font-weight: 700;">Review Your Choice</h6>
+                            <div id="confirmationDetails" class="mb-3"></div>
+                            <div class="alert alert-info">
+                                <small>Your room allocation request will be reviewed by the admin. You'll receive an email confirmation once approved.</small>
+                            </div>
+                            <button class="btn btn-success me-2" onclick="submitRoomRequest()">Submit Request</button>
+                            <button class="btn btn-outline-secondary" onclick="cancelSelection()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+    <script>
+        // ==========================================
+        //  Student Dashboard Logic (fixed version)
+        // ==========================================
+        let selectedHostel = null;
+        let selectedRoomType = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStudentInfo();
+            loadHostelsFromAPI();
+            checkCurrentAllocation();
+        });
+
+        // --- Load student info from logged-in user ---
+        function loadStudentInfo() {
+            const el = document.getElementById('studentInfo');
+            let user = null;
+            try {
+                if (typeof currentUser !== 'undefined' && currentUser) user = currentUser;
+                else user = JSON.parse(localStorage.getItem('currentUser'));
+            } catch (e) { user = null; }
+
+            if (!user) {
+                el.innerHTML = `<div class="alert alert-warning">No student information available. Please login.</div>`;
+                return;
+            }
+
+            el.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong style="color: var(--clr-text-secondary);">Name:</strong> <span style="color: var(--clr-text);">${escapeHtml(user.name || user.username || '—')}</span></p>
+                        <p><strong style="color: var(--clr-text-secondary);">Reg No:</strong> <span style="color: var(--clr-text);">${escapeHtml(user.regNo || '—')}</span></p>
+                        <p><strong style="color: var(--clr-text-secondary);">Email:</strong> <span style="color: var(--clr-text);">${escapeHtml(user.email || '—')}</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong style="color: var(--clr-text-secondary);">Year of Study:</strong> <span style="color: var(--clr-text);">${user.yearOfStudy || '—'}</span></p>
+                        <p><strong style="color: var(--clr-text-secondary);">Attendance:</strong> <span style="color: var(--clr-text);">${user.attendancePercentage != null ? user.attendancePercentage + '%' : '—'}</span></p>
+                        <p><strong style="color: var(--clr-text-secondary);">Student Type:</strong> <span style="color: var(--clr-text);">${escapeHtml(user.studentType || 'UG')}</span></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- FIXED: Load hostels from API instead of hardcoded data ---
+        async function loadHostelsFromAPI() {
+            const container = document.getElementById('hostelContainer');
+            try {
+                const response = await fetch(`${API_BASE}/hostels`);
+                if (!response.ok) throw new Error('Failed to fetch hostels');
+                const hostels = await response.json();
+
+                if (hostels.length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center text-muted py-3">No hostels available.</div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                hostels.forEach(hostel => {
+                    const name = hostel.hostelName || hostel.name || 'Hostel ' + hostel.id;
+                    const type = hostel.hostelType || 'MIXED';
+                    const typeLabel = type === 'GENTS' ? '🔵 Gents' : type === 'LADIES' ? '🩷 Ladies' : '🟢 Mixed';
+
+                    const card = `
+                        <div class="col-md-4">
+                            <div class="selection-card" onclick="selectHostel(${hostel.id}, '${escapeHtml(name)}', '${type}')" data-hostel-id="${hostel.id}">
+                                <h6 style="font-weight: 700; color: var(--clr-text);">${escapeHtml(name)}</h6>
+                                <p class="small mb-1" style="color: var(--clr-text-secondary);">
+                                    <strong>Type:</strong> ${typeLabel}
+                                </p>
+                                <span class="badge bg-success">Available</span>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += card;
+                });
+            } catch (error) {
+                console.error('Error loading hostels:', error);
+                container.innerHTML = '<div class="col-12"><div class="alert alert-danger">Failed to load hostels. Please try again.</div></div>';
+            }
+        }
+
+        // --- Select hostel ---
+        function selectHostel(hostelId, hostelName, hostelType) {
+            document.querySelectorAll('.selection-card').forEach(c => c.classList.remove('selected'));
+            const card = document.querySelector(`[data-hostel-id="${hostelId}"]`);
+            if (card) card.classList.add('selected');
+
+            selectedHostel = { id: hostelId, name: hostelName, type: hostelType };
+            selectedRoomType = null;
+
+            // Update stepper
+            document.getElementById('step1circle').className = 'stepper-circle completed';
+            document.getElementById('step1circle').textContent = '✓';
+            document.getElementById('step2circle').className = 'stepper-circle active';
+            document.getElementById('line1').className = 'stepper-line active';
+
+            document.getElementById('hostelSelectionStep').style.display = 'none';
+            document.getElementById('roomTypeSelectionStep').style.display = 'block';
+
+            loadRoomTypesFromAPI(hostelId);
+            updateSelectionSummary();
+        }
+
+        // --- FIXED: Load room types from API based on available rooms in the selected hostel ---
+        async function loadRoomTypesFromAPI(hostelId) {
+            const container = document.getElementById('roomTypeContainer');
+            container.innerHTML = '<div class="col-12 text-center text-muted py-3">Loading room types...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/rooms/available`);
+                if (!response.ok) throw new Error('Failed to fetch rooms');
+                const allRooms = await response.json();
+
+                // Group available rooms by their attributes to show unique room type options
+                const roomTypeMap = {};
+                allRooms.forEach(room => {
+                    const key = `${room.sharingType}|${room.acType}|${room.bathroomType}`;
+                    if (!roomTypeMap[key]) {
+                        roomTypeMap[key] = {
+                            sharing: room.sharingType,
+                            ac: room.acType,
+                            bathroom: room.bathroomType,
+                            capacity: room.capacity,
+                            count: 0
+                        };
+                    }
+                    roomTypeMap[key].count++;
+                });
+
+                const roomTypes = Object.values(roomTypeMap);
+
+                if (roomTypes.length === 0) {
+                    container.innerHTML = '<div class="col-12"><div class="alert alert-warning">No rooms available at the moment.</div></div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                roomTypes.forEach((rt, idx) => {
+                    const sharingLabel = rt.sharing === 'SINGLE' ? 'Single Occupancy' :
+                                         rt.sharing === 'DOUBLE_SHARING' ? 'Double Sharing' :
+                                         rt.sharing === 'THREE_SHARING' ? 'Three Sharing' : rt.sharing;
+                    const acLabel = rt.ac === 'AC' ? '❄️ AC' : '🌀 Non-AC';
+                    const bathLabel = rt.bathroom === 'ATTACHED' ? '🚿 Attached' : '🏢 Common';
+
+                    const card = `
+                        <div class="col-md-4">
+                            <div class="selection-card" onclick="selectRoomType(${idx}, '${rt.sharing}', '${sharingLabel}', '${rt.ac}', '${rt.bathroom}')" data-room-type-id="${idx}">
+                                <h6 style="font-weight: 700; color: var(--clr-text);">${sharingLabel}</h6>
+                                <p class="small mb-1" style="color: var(--clr-text-secondary);">
+                                    ${acLabel} · ${bathLabel}<br>
+                                    <strong>Capacity:</strong> ${rt.capacity} per room
+                                </p>
+                                <span class="badge bg-success">${rt.count} room${rt.count > 1 ? 's' : ''} available</span>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += card;
+                });
+            } catch (error) {
+                console.error('Error loading room types:', error);
+                container.innerHTML = '<div class="col-12"><div class="alert alert-danger">Failed to load room types.</div></div>';
+            }
+        }
+
+        // --- Select room type ---
+        function selectRoomType(idx, sharingEnum, sharingLabel, ac, bathroom) {
+            document.querySelectorAll('[data-room-type-id]').forEach(c => c.classList.remove('selected'));
+            const card = document.querySelector(`[data-room-type-id="${idx}"]`);
+            if (card) card.classList.add('selected');
+
+            selectedRoomType = {
+                id: idx,
+                sharing: sharingLabel,
+                sharingEnum: sharingEnum,
+                ac: ac,
+                bathroom: bathroom
+            };
+
+            // Update stepper
+            document.getElementById('step2circle').className = 'stepper-circle completed';
+            document.getElementById('step2circle').textContent = '✓';
+            document.getElementById('step3circle').className = 'stepper-circle active';
+            document.getElementById('line2').className = 'stepper-line active';
+
+            document.getElementById('roomTypeSelectionStep').style.display = 'none';
+            document.getElementById('confirmationStep').style.display = 'block';
+
+            updateSelectionSummary();
+            showConfirmationDetails();
+        }
+
+        // --- Navigation ---
+        function backToHostelSelection() {
+            document.getElementById('roomTypeSelectionStep').style.display = 'none';
+            document.getElementById('hostelSelectionStep').style.display = 'block';
+            selectedRoomType = null;
+
+            // Reset stepper
+            document.getElementById('step1circle').className = 'stepper-circle active';
+            document.getElementById('step1circle').textContent = '1';
+            document.getElementById('step2circle').className = 'stepper-circle inactive';
+            document.getElementById('step2circle').textContent = '2';
+            document.getElementById('line1').className = 'stepper-line';
+
+            updateSelectionSummary();
+        }
+
+        function backToRoomTypeSelection() {
+            document.getElementById('confirmationStep').style.display = 'none';
+            document.getElementById('roomTypeSelectionStep').style.display = 'block';
+
+            document.getElementById('step2circle').className = 'stepper-circle active';
+            document.getElementById('step2circle').textContent = '2';
+            document.getElementById('step3circle').className = 'stepper-circle inactive';
+            document.getElementById('step3circle').textContent = '3';
+            document.getElementById('line2').className = 'stepper-line';
+
+            updateSelectionSummary();
+        }
+
+        function cancelSelection() {
+            document.getElementById('confirmationStep').style.display = 'none';
+            document.getElementById('roomTypeSelectionStep').style.display = 'none';
+            document.getElementById('hostelSelectionStep').style.display = 'block';
+            selectedHostel = null;
+            selectedRoomType = null;
+
+            // Reset stepper
+            document.getElementById('step1circle').className = 'stepper-circle active';
+            document.getElementById('step1circle').textContent = '1';
+            document.getElementById('step2circle').className = 'stepper-circle inactive';
+            document.getElementById('step2circle').textContent = '2';
+            document.getElementById('step3circle').className = 'stepper-circle inactive';
+            document.getElementById('step3circle').textContent = '3';
+            document.getElementById('line1').className = 'stepper-line';
+            document.getElementById('line2').className = 'stepper-line';
+
+            document.querySelectorAll('.selection-card').forEach(c => c.classList.remove('selected'));
+            updateSelectionSummary();
+        }
+
+        function updateSelectionSummary() {
+            const el = document.getElementById('selectionSummary');
+            if (selectedHostel && selectedRoomType) {
+                const acLabel = selectedRoomType.ac === 'AC' ? 'AC' : 'Non-AC';
+                const bathLabel = selectedRoomType.bathroom === 'ATTACHED' ? 'Attached' : 'Common';
+                el.innerHTML = `<strong>${escapeHtml(selectedHostel.name)}</strong> · ${escapeHtml(selectedRoomType.sharing)} (${acLabel}, ${bathLabel} bathroom)`;
+            } else if (selectedHostel) {
+                el.innerHTML = `<strong>${escapeHtml(selectedHostel.name)}</strong> · Choose room type →`;
+            } else {
+                el.innerHTML = 'No selection made yet';
+            }
+        }
+
+        function showConfirmationDetails() {
+            const el = document.getElementById('confirmationDetails');
+            const acLabel = selectedRoomType.ac === 'AC' ? 'AC' : 'Non-AC';
+            const bathLabel = selectedRoomType.bathroom === 'ATTACHED' ? 'Attached' : 'Common';
+            el.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong style="color: var(--clr-text-secondary);">Hostel:</strong> <span style="color: var(--clr-text);">${escapeHtml(selectedHostel.name)}</span></p>
+                        <p><strong style="color: var(--clr-text-secondary);">Type:</strong> <span style="color: var(--clr-text);">${escapeHtml(selectedHostel.type)}</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong style="color: var(--clr-text-secondary);">Room Type:</strong> <span style="color: var(--clr-text);">${escapeHtml(selectedRoomType.sharing)}</span></p>
+                        <p><strong style="color: var(--clr-text-secondary);">AC:</strong> <span style="color: var(--clr-text);">${acLabel}</span></p>
+                        <p><strong style="color: var(--clr-text-secondary);">Bathroom:</strong> <span style="color: var(--clr-text);">${bathLabel}</span></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- FIXED: Submit room request to backend API ---
+        async function submitRoomRequest() {
+            if (!selectedHostel || !selectedRoomType) {
+                alert('Please complete the selection before submitting.');
+                return;
+            }
+
+            const userData = localStorage.getItem('currentUser');
+            if (!userData) { alert('You must be logged in.'); return; }
+
+            const current = JSON.parse(userData);
+            if (!current.id) { alert('User info missing. Please login again.'); return; }
+
+            const payload = {
+                requestedHostel: selectedHostel.name,
+                requestedRoomSharing: selectedRoomType.sharing,
+                requestedAc: selectedRoomType.ac,
+                requestedBathroom: selectedRoomType.bathroom,
+                requestStatus: 'PENDING'
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/students/${current.id}/request`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(errText || 'Request failed');
+                }
+
+                const updatedStudent = await response.json();
+                localStorage.setItem('currentUser', JSON.stringify(updatedStudent));
+
+                // Show pending status
+                document.getElementById('currentAllocationCard').style.display = 'block';
+                document.getElementById('currentAllocation').innerHTML = `
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="status-dot pending"></span>
+                        <strong style="color: var(--clr-warning);">Room Request Pending</strong>
+                    </div>
+                    <p class="mb-0" style="color: var(--clr-text-secondary);">
+                        Your request for <strong style="color: var(--clr-text);">${escapeHtml(updatedStudent.requestedRoomSharing)}</strong>
+                        in <strong style="color: var(--clr-text);">${escapeHtml(updatedStudent.requestedHostel)}</strong> is under review.
+                    </p>
+                `;
+
+                cancelSelection();
+                alert('Room request submitted successfully! Admin will review it.');
+            } catch (err) {
+                console.error('Failed to submit room request:', err);
+                alert('Failed to submit room request: ' + err.message);
+            }
+        }
+
+        // --- FIXED: Check actual current allocation from backend ---
+        async function checkCurrentAllocation() {
+            let user = null;
+            try {
+                user = JSON.parse(localStorage.getItem('currentUser'));
+            } catch (e) { return; }
+            
+            if (!user || !user.id) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/students/${user.id}`);
+                if (!response.ok) return;
+                const student = await response.json();
+
+                // Update localStorage with fresh data
+                localStorage.setItem('currentUser', JSON.stringify(student));
+
+                const allocationCard = document.getElementById('currentAllocationCard');
+                const allocationBody = document.getElementById('currentAllocation');
+
+                if (student.allocatedRoom && student.allocatedRoom.roomNo) {
+                    // Student has an allocated room
+                    allocationCard.style.display = 'block';
+                    allocationBody.innerHTML = `
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="status-dot available"></span>
+                            <strong style="color: var(--clr-success);">Room Allocated</strong>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong style="color: var(--clr-text-secondary);">Room:</strong> <span style="color: var(--clr-text);">${escapeHtml(student.allocatedRoom.roomNo)}</span></p>
+                                <p class="mb-1"><strong style="color: var(--clr-text-secondary);">Type:</strong> <span style="color: var(--clr-text);">${student.allocatedRoom.sharingType || '—'}</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong style="color: var(--clr-text-secondary);">AC:</strong> <span style="color: var(--clr-text);">${student.allocatedRoom.acType || '—'}</span></p>
+                                <p class="mb-1"><strong style="color: var(--clr-text-secondary);">Bathroom:</strong> <span style="color: var(--clr-text);">${student.allocatedRoom.bathroomType || '—'}</span></p>
+                            </div>
+                        </div>
+                    `;
+                    // Hide room selection since student already has a room
+                    document.getElementById('roomSelectionCard').style.display = 'none';
+                } else if (student.requestStatus === 'PENDING') {
+                    // Student has a pending request
+                    allocationCard.style.display = 'block';
+                    allocationBody.innerHTML = `
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="status-dot pending"></span>
+                            <strong style="color: var(--clr-warning);">Room Request Pending</strong>
+                        </div>
+                        <p class="mb-0" style="color: var(--clr-text-secondary);">
+                            Your request for <strong style="color: var(--clr-text);">${escapeHtml(student.requestedRoomSharing || '—')}</strong>
+                            in <strong style="color: var(--clr-text);">${escapeHtml(student.requestedHostel || '—')}</strong> is under review.
+                        </p>
+                    `;
+                }
+            } catch (err) {
+                console.error('Error checking allocation:', err);
+            }
+        }
+    </script>
+
+</body>
+</html>
